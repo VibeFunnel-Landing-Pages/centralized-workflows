@@ -11,6 +11,11 @@ on:
         description: 'Target directory to deploy'
         required: true
         type: string
+      delete_flag:
+        description: 'Unused compatibility flag retained for callers'
+        required: false
+        default: true
+        type: boolean
     secrets:
       S3_BUCKET_NAME:
         required: true
