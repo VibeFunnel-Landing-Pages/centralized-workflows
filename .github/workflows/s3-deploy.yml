@@ -11,11 +11,6 @@ on:
         description: 'Target directory to deploy'
         required: true
         type: string
-      delete_flag:
-        description: 'Whether to delete files in the bucket that are not in the source'
-        required: false
-        default: true
-        type: boolean
     secrets:
       S3_BUCKET_NAME:
         required: true
@@ -53,7 +48,8 @@ jobs:
     - name: Sync files to S3 (native AWS CLI)
       run: |
         echo "Syncing $SOURCE_DIR to s3://$AWS_S3_BUCKET/$DEST_DIR"
-        aws s3 sync "$SOURCE_DIR" "s3://$AWS_S3_BUCKET/$DEST_DIR" $ARGS
+        ARGS=(--exclude 'images/resized' --exclude 'images/resized/*' --delete)
+        aws s3 sync "$SOURCE_DIR" "s3://$AWS_S3_BUCKET/$DEST_DIR" "${ARGS[@]}"
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -61,5 +57,3 @@ jobs:
         AWS_S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
         SOURCE_DIR: ${{ inputs.source_dir }}
         DEST_DIR: ${{ inputs.dest_dir }}
-        ARGS: ${{ inputs.delete_flag == true && '--delete' || '' }}
-
