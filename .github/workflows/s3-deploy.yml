@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       delete_flag:
-        description: 'When true adds --delete to the sync (images/resized* still excluded)'
+        description: 'When true adds --delete to the non-image sync step'
         required: false
         default: true
         type: boolean
@@ -50,10 +50,10 @@ jobs:
         SOURCE_DIR: ${{ inputs.source_dir }}
         DEST_DIR: ${{ inputs.dest_dir }}
 
-    - name: Sync files to S3 (native AWS CLI)
+    - name: Sync non-image files (with optional delete)
       run: |
-        echo "Syncing $SOURCE_DIR to s3://$AWS_S3_BUCKET/$DEST_DIR"
-        ARGS=(--exclude 'images/resized' --exclude 'images/resized/*')
+        echo "Syncing non-image content from $SOURCE_DIR to s3://$AWS_S3_BUCKET/$DEST_DIR"
+        ARGS=(--exclude 'images' --exclude 'images/*')
         if [ "$DELETE_FLAG" = "true" ]; then
           ARGS+=(--delete)
         fi
@@ -66,3 +66,20 @@ jobs:
         SOURCE_DIR: ${{ inputs.source_dir }}
         DEST_DIR: ${{ inputs.dest_dir }}
         DELETE_FLAG: ${{ inputs.delete_flag }}
+
+    - name: Sync images without delete
+      run: |
+        if [ ! -d "$SOURCE_DIR/images" ]; then
+          echo "No images directory found in $SOURCE_DIR; skipping images sync"
+          exit 0
+        fi
+
+        echo "Syncing images from $SOURCE_DIR/images to s3://$AWS_S3_BUCKET/$DEST_DIR/images"
+        aws s3 sync "$SOURCE_DIR/images" "s3://$AWS_S3_BUCKET/$DEST_DIR/images"
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+        SOURCE_DIR: ${{ inputs.source_dir }}
+        DEST_DIR: ${{ inputs.dest_dir }}
