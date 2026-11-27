@@ -31,8 +31,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # Deploy the branch tip, not the triggering commit: when pushes come in quick succession, a run that
+    # finishes last must not mirror (with --delete) an older snapshot over a newer one. No credentials are
+    # persisted into .git/config.
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref }}
+        persist-credentials: false
 
     - name: 🔍 Debug AWS env values
       run: |
@@ -53,7 +59,8 @@ jobs:
     - name: Sync non-image files (with optional delete)
       run: |
         echo "Syncing non-image content from $SOURCE_DIR to s3://$AWS_S3_BUCKET/$DEST_DIR"
-        ARGS=(--exclude 'images' --exclude 'images/*')
+        # Git metadata, CI config and the repository README are never published
+        ARGS=(--exclude 'images' --exclude 'images/*' --exclude '.git*' --exclude 'README.md')
         if [ "$DELETE_FLAG" = "true" ]; then
           ARGS+=(--delete)
         fi
@@ -66,6 +73,20 @@ jobs:
         SOURCE_DIR: ${{ inputs.source_dir }}
         DEST_DIR: ${{ inputs.dest_dir }}
         DELETE_FLAG: ${{ inputs.delete_flag }}
+
+    - name: Remove git metadata published by earlier deploys
+      run: |
+        # Excluded paths are skipped by --delete, so copies uploaded before they were excluded are removed here
+        aws s3 rm "s3://$AWS_S3_BUCKET/$DEST_DIR/.git" --recursive
+        aws s3 rm "s3://$AWS_S3_BUCKET/$DEST_DIR/.github" --recursive
+        aws s3 rm "s3://$AWS_S3_BUCKET/$DEST_DIR/.gitignore"
+        aws s3 rm "s3://$AWS_S3_BUCKET/$DEST_DIR/README.md"
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+        DEST_DIR: ${{ inputs.dest_dir }}
 
     - name: Sync images without delete
       run: |
